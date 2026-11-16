@@ -25,6 +25,7 @@ CREATE TABLE productos (
     idProducto INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(150) NOT NULL,
     descripcion TEXT NOT NULL,
+    imagen VARCHAR(500) NULL DEFAULT NULL,
     precio DECIMAL(10, 2) NOT NULL,
     stock INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB;
@@ -64,5 +65,4 @@ CREATE TABLE lineaPedido (
     CONSTRAINT fkLineaProducto FOREIGN KEY (idProducto) 
         REFERENCES productos(idProducto) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB;
-
 
