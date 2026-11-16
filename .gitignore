@@ -1,0 +1,5 @@
+/config/config.php
+/.agents/
+AGENTS.md
+*.log
+.DS_Store
