@@ -496,3 +496,8 @@ h1 { margin-top: 17px; font: 600 clamp(50px, 5.1vw, 76px)/.98 var(--font-display
     .cart-summary-body { padding-inline: 20px; }
     .cart-summary-stub { margin-inline: 20px; }
 }
+
+/* Historial: importes y fechas legibles, acción de recompra accesible. */
+.orders-table tbody th { padding: 18px; border-top: 1px solid var(--silver); font-weight: 700; }
+.orders-table time, .orders-total { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.orders-rebuy { min-height: 44px; padding: 10px 14px; font-size: 11px; white-space: nowrap; }

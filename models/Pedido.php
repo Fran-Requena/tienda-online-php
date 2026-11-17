@@ -12,6 +12,42 @@ class Pedido
         $this->conexion = $conexion ?? Conexion::obtenerConexion();
     }
 
+    public function obtenerPorUsuario(int $usuarioId): array
+    {
+        $sentencia = $this->conexion->prepare(
+            'SELECT idPedido AS id, totalPedido AS total, fechaPedido AS fechaRealizacion
+             FROM pedidos WHERE idUsuario = :usuarioId
+             ORDER BY fechaPedido DESC, idPedido DESC'
+        );
+        $sentencia->execute([':usuarioId' => $usuarioId]);
+        return $sentencia->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function perteneceAUsuario(int $pedidoId, int $usuarioId): bool
+    {
+        $sentencia = $this->conexion->prepare(
+            'SELECT idPedido FROM pedidos WHERE idPedido = :pedidoId AND idUsuario = :usuarioId'
+        );
+        $sentencia->execute([':pedidoId' => $pedidoId, ':usuarioId' => $usuarioId]);
+        return $sentencia->fetchColumn() !== false;
+    }
+
+    /** Las líneas solo se pueden consultar desde la sesión de su propietario. */
+    public function obtenerLineasPedido(int $pedidoId): array
+    {
+        $sentencia = $this->conexion->prepare(
+            'SELECT l.idProducto AS productoId, l.cantidad, l.precioUnitario
+             FROM lineaPedido l JOIN pedidos p ON p.idPedido = l.idPedido
+             WHERE l.idPedido = :pedidoId AND p.idUsuario = :usuarioId
+             ORDER BY l.idProducto'
+        );
+        $sentencia->execute([
+            ':pedidoId' => $pedidoId,
+            ':usuarioId' => (int)($_SESSION['usuarioId'] ?? 0),
+        ]);
+        return $sentencia->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public static function calcularCosteEnvio(float $subtotal, string $pais): float
     {
         return match ($pais) {

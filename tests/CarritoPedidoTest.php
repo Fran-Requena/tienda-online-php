@@ -10,7 +10,7 @@ $conexion = Conexion::obtenerConexion();
 $conexion->exec('CREATE TEMPORARY TABLE usuarios (idUsuario INT PRIMARY KEY, nombre VARCHAR(100), apellidos VARCHAR(100), email VARCHAR(150), password VARCHAR(255), dni VARCHAR(15), fechaNacimiento DATE, pais VARCHAR(50), provincia VARCHAR(100), poblacion VARCHAR(100), cp VARCHAR(10)) ENGINE=InnoDB');
 $conexion->exec('CREATE TEMPORARY TABLE productos (idProducto INT PRIMARY KEY, nombre VARCHAR(150), precio DECIMAL(10,2), stock INT NOT NULL, imagen VARCHAR(500) NULL) ENGINE=InnoDB');
 $conexion->exec('CREATE TEMPORARY TABLE lineaCarrito (idUsuario INT, idProducto INT, cantidad INT NOT NULL, PRIMARY KEY (idUsuario, idProducto)) ENGINE=InnoDB');
-$conexion->exec('CREATE TEMPORARY TABLE pedidos (idPedido INT AUTO_INCREMENT PRIMARY KEY, idUsuario INT, subtotal DECIMAL(10,2), gastosEnvio DECIMAL(10,2), totalPedido DECIMAL(10,2)) ENGINE=InnoDB');
+$conexion->exec('CREATE TEMPORARY TABLE pedidos (idPedido INT AUTO_INCREMENT PRIMARY KEY, idUsuario INT, fechaPedido DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, subtotal DECIMAL(10,2), gastosEnvio DECIMAL(10,2), totalPedido DECIMAL(10,2)) ENGINE=InnoDB');
 // El CHECK permite provocar un fallo real en una línea, después de insertar la cabecera.
 $conexion->exec('CREATE TEMPORARY TABLE lineaPedido (idPedido INT, idProducto INT, cantidad INT CHECK (cantidad < 5), precioUnitario DECIMAL(10,2), PRIMARY KEY (idPedido, idProducto)) ENGINE=InnoDB');
 $conexion->exec("INSERT INTO usuarios (idUsuario, pais) VALUES (1, 'España'), (2, 'Portugal')");
@@ -126,6 +126,46 @@ $_SESSION = ['usuarioId' => 2];
 $pedidoPortugal = $pedido->realizarCompra(2);
 $comprobar((float)$valor('SELECT gastosEnvio FROM pedidos WHERE idPedido=' . $pedidoPortugal) === 20.0, 'No utiliza el país del perfil al comprar.');
 $comprobar((float)$valor('SELECT totalPedido FROM pedidos WHERE idPedido=' . $pedidoPortugal) === 20.10, 'Total portugués incorrecto.');
+
+
+$historialPortugal = $pedido->obtenerPorUsuario(2);
+$comprobar(count($historialPortugal) === 1 && (int)$historialPortugal[0]['id'] === $pedidoPortugal, 'El historial incluye pedidos de otro usuario.');
+$comprobar($pedido->obtenerPorUsuario(999) === [], 'Usuario sin pedidos recibe historial.');
+$conexion->exec("UPDATE pedidos SET fechaPedido='2026-01-01 12:30:00'");
+$conexion->exec("UPDATE pedidos SET fechaPedido='2026-02-01 12:30:00' WHERE idPedido=" . $pedidoId);
+$historialEspana = $pedido->obtenerPorUsuario(1);
+$comprobar(array_map('intval', array_column($historialEspana, 'id')) === [$pedidoId, $pedidoEspana], 'El historial no ordena por fecha descendente.');
+$comprobar((float)$historialEspana[0]['total'] === 100.10 && $historialEspana[0]['fechaRealizacion'] === '2026-02-01 12:30:00', 'Faltan los importes o fecha del histórico.');
+$conexion->exec("UPDATE pedidos SET fechaPedido='2026-01-01 12:30:00'");
+$comprobar(array_map('intval', array_column($pedido->obtenerPorUsuario(1), 'id')) === [$pedidoEspana, $pedidoId], 'Fechas iguales no ordenan por ID descendente.');
+$comprobar($pedido->perteneceAUsuario($pedidoId, 1) && !$pedido->perteneceAUsuario($pedidoId, 2) && !$pedido->perteneceAUsuario(999, 1), 'Falla la verificación del propietario.');
+$_SESSION = ['usuarioId' => 1];
+$lineas = $pedido->obtenerLineasPedido($pedidoId);
+$comprobar(count($lineas) === 2 && (int)$lineas[0]['productoId'] === 1 && (int)$lineas[0]['cantidad'] === 4 && (float)$lineas[0]['precioUnitario'] === 25.0, 'Líneas históricas incorrectas.');
+$comprobar($pedido->obtenerLineasPedido($pedidoPortugal) === [] && $pedido->obtenerLineasPedido(999) === [], 'Consulta líneas de otro usuario o inexistentes.');
+$_SESSION = [];
+$comprobar($pedido->obtenerLineasPedido($pedidoId) === [], 'Un invitado puede consultar líneas de pedido.');
+
+$_SESSION = ['usuarioId' => 1];
+$conexion->exec('UPDATE productos SET stock=2 WHERE idProducto=1');
+$carrito->agregarProducto(1, 1);
+foreach ($pedido->obtenerLineasPedido($pedidoId) as $linea) {
+    $carrito->agregarProducto((int)$linea['productoId'], (int)$linea['cantidad']);
+}
+$comprobar((int)$valor('SELECT cantidad FROM lineaCarrito WHERE idUsuario=1 AND idProducto=1') === 2, 'La recompra no suma al carrito existente o supera stock.');
+$comprobar((int)$valor('SELECT cantidad FROM lineaCarrito WHERE idUsuario=1 AND idProducto=2') === 1, 'No recupera todas las líneas disponibles.');
+$comprobar((int)$valor('SELECT stock FROM productos WHERE idProducto=1') === 2 && (int)$valor('SELECT COUNT(*) FROM pedidos') === 3, 'La recompra descuenta stock o crea pedidos antes de finalizar.');
+$carrito->vaciarCarrito(1);
+$conexion->exec('UPDATE productos SET stock=0 WHERE idProducto=1');
+foreach ($pedido->obtenerLineasPedido($pedidoId) as $linea) {
+    try {
+        $carrito->agregarProducto((int)$linea['productoId'], (int)$linea['cantidad']);
+    } catch (DomainException $error) {
+        // Igual que el controlador, continúa con las líneas disponibles.
+    }
+}
+$comprobar(count($carrito->obtenerCarritoDetallado()) === 1 && $carrito->obtenerCarritoDetallado()[0]['id'] === 2, 'Un producto agotado impide recomprar los demás.');
+
 
 
 $token = ProteccionFormulario::obtenerToken();

@@ -1,6 +1,8 @@
 <?php
 
 require_once __DIR__ . '/../models/Usuario.php';
+require_once __DIR__ . '/../models/Pedido.php';
+require_once __DIR__ . '/../utils/ProteccionFormulario.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -29,6 +31,15 @@ if ($usuario === false) {
     header('Location: /tienda-online-php/views/login.php', true, 303);
     exit;
 }
+
+$pedidos = [];
+$errorPedidos = '';
+try {
+    $pedidos = (new Pedido())->obtenerPorUsuario($usuarioId);
+} catch (PDOException $error) {
+    $errorPedidos = 'No se ha podido cargar tu historial. Recarga la página para volver a intentarlo.';
+}
+$tokenFormulario = ProteccionFormulario::obtenerToken();
 
 header('Cache-Control: no-store');
 require_once __DIR__ . '/partials/header.php';
@@ -106,15 +117,33 @@ require_once __DIR__ . '/partials/header.php';
         <div class="orders-table-scroll" role="region" aria-labelledby="tituloPedidos" tabindex="0">
             <table class="orders-table">
                 <caption class="visually-hidden">Historial de pedidos de tu cuenta</caption>
-                <thead><tr><th scope="col">ID Pedido</th><th scope="col">Total</th><th scope="col">Fecha</th><th scope="col">Acciones</th></tr></thead>
+                <thead><tr><th scope="col">ID Pedido</th><th scope="col">Total</th><th scope="col">Fecha de realización</th><th scope="col">Acciones</th></tr></thead>
                 <tbody>
-                    <!-- Incorporar aquí las filas al conectar el modelo de pedidos. -->
+                    <?php if ($errorPedidos !== ''): ?>
+                        <tr><td colspan="4"><p role="alert"><?= htmlspecialchars((string)$errorPedidos) ?></p></td></tr>
+                    <?php elseif ($pedidos !== []): ?>
+                        <?php foreach ($pedidos as $pedido): ?>
+                            <?php $fechaRealizacion = new DateTimeImmutable($pedido['fechaRealizacion']); ?>
+                            <tr>
+                                <th scope="row">#<?= htmlspecialchars((string)$pedido['id']) ?></th>
+                                <td class="orders-total"><?= htmlspecialchars((string)number_format((float)$pedido['total'], 2, ',', '.')) ?> €</td>
+                                <td><time datetime="<?= htmlspecialchars((string)$fechaRealizacion->format('Y-m-d\TH:i:s')) ?>"><?= htmlspecialchars((string)$fechaRealizacion->format('d/m/Y H:i')) ?></time></td>
+                                <td>
+                                    <form action="/tienda-online-php/controllers/pedidoController.php?accion=recomprar&amp;id=<?= htmlspecialchars((string)$pedido['id']) ?>" method="post">
+                                        <input type="hidden" name="tokenFormulario" value="<?= htmlspecialchars((string)$tokenFormulario) ?>">
+                                        <button class="button account-submit orders-rebuy" type="submit" aria-label="Volver a comprar el pedido <?= htmlspecialchars((string)$pedido['id']) ?>">Volver a comprar</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
                     <tr><td colspan="4" class="orders-empty">
                         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M5 8h14l1 13H4L5 8Z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/></svg>
                         <h3>Tu próxima historia está por llegar.</h3>
-                        <p>Aquí podrás consultar tu historial de pedidos.</p>
+                        <p>Aún no has realizado ningún pedido. Explora la colección para encontrar tu próxima pieza.</p>
                         <a class="text-link" href="/tienda-online-php/index.php#catalogo">Explorar la colección</a>
                     </td></tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>

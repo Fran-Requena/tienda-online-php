@@ -21,6 +21,10 @@ El invitado guarda su carrito en sesión y en una cookie `carritoInvitado` de si
 
 El invitado ve la estimación para España y debe iniciar sesión para comprar.
 
+## Historial y recompra
+
+El perfil muestra los pedidos del usuario del más reciente al más antiguo, con ID, total y fecha. «Volver a comprar» envía un formulario POST protegido con CSRF a `controllers/pedidoController.php?accion=recomprar&id=...`. El servidor comprueba el propietario antes de consultar las líneas y añade al carrito los productos disponibles con las cantidades limitadas al stock actual. Los agotados se omiten sin impedir recuperar los demás; la recompra no crea un pedido ni descuenta stock hasta finalizar la compra.
+
 ## Pruebas
 
 ```sh

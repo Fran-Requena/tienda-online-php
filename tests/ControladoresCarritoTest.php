@@ -22,6 +22,7 @@ class Carrito
     {
         $GLOBALS['llamadasModelo'][] = [$productoId, $cantidad];
         if (($GLOBALS['entrada']['modo'] ?? '') === 'error') { throw new PDOException('Detalle interno MySQL'); }
+        if (($GLOBALS['entrada']['modo'] ?? '') === 'todosAgotados' || (($GLOBALS['entrada']['modo'] ?? '') === 'unoAgotado' && $productoId === 1)) { throw new DomainException('Producto agotado.'); }
         return min(3, $cantidad);
     }
     public function eliminarProducto(int $productoId): void { $GLOBALS['llamadasModelo'][] = [$productoId]; }
@@ -31,6 +32,16 @@ file_put_contents($directorioPruebas . '/models/Pedido.php', <<<'MODELO'
 <?php
 class Pedido
 {
+    public function perteneceAUsuario(int $pedidoId, int $usuarioId): bool
+    {
+        $GLOBALS['llamadasModelo'][] = ['pertenece', $pedidoId, $usuarioId];
+        return $pedidoId === 42 && $usuarioId === 7 && ($GLOBALS['entrada']['modo'] ?? '') !== 'ajeno';
+    }
+    public function obtenerLineasPedido(int $pedidoId): array
+    {
+        $GLOBALS['llamadasModelo'][] = ['lineas', $pedidoId];
+        return [['productoId' => 1, 'cantidad' => 5], ['productoId' => 2, 'cantidad' => 2]];
+    }
     public function realizarCompra(int $usuarioId): int
     {
         $GLOBALS['llamadasModelo'][] = [$usuarioId];
@@ -119,6 +130,29 @@ try {
         $resultado = $peticion(['controlador' => 'pedidoController', 'post' => $post, 'sesion' => $sesion, 'modo' => $modo], 'views/carrito.php');
         $comprobar(isset($resultado['sesion']['tokenFormulario']) && !str_contains($resultado['sesion']['alerta'], 'MySQL'), 'Fallo pierde token o expone datos internos.');
     }
+    $recompra = ['controlador' => 'pedidoController', 'metodo' => 'POST', 'get' => ['accion' => 'recomprar', 'id' => 42], 'post' => $post, 'sesion' => $sesion];
+    $resultado = $peticion($recompra, 'views/carrito.php');
+    $comprobar($resultado['llamadas'] === [['pertenece', 42, 7], ['lineas', 42], [1, 5], [2, 2]], 'No comprueba propiedad antes de recuperar y añadir las líneas.');
+    $comprobar(isset($resultado['sesion']['tokenFormulario']), 'La recompra consume el token de finalizar compra.');
+    foreach (['unoAgotado', 'todosAgotados'] as $modo) {
+        $resultado = $peticion($recompra + ['modo' => $modo], 'views/carrito.php');
+        $comprobar(count($resultado['llamadas']) === 4, 'Un agotado impide intentar el resto de líneas.');
+        $comprobar(str_contains($resultado['sesion']['alerta'], $modo === 'unoAgotado' ? 'Algunos artículos' : 'Ningún producto'), 'No informa de los artículos agotados.');
+    }
+    $resultado = $peticion($recompra + ['modo' => 'ajeno'], 'views/perfil.php');
+    $comprobar($resultado['llamadas'] === [['pertenece', 42, 7]], 'Lee líneas o cambia el carrito de un pedido ajeno.');
+    foreach ([0, -1, 'texto', [], 999] as $id) {
+        $resultado = $peticion(array_replace($recompra, ['get' => ['accion' => 'recomprar', 'id' => $id]]), 'views/perfil.php');
+        $comprobar($resultado['llamadas'] === ($id === 999 ? [['pertenece', 999, 7]] : []), 'Un ID inválido accede a líneas.');
+    }
+    foreach ([['metodo' => 'GET'], ['post' => ['tokenFormulario' => 'otro']]] as $cambio) {
+        $resultado = $peticion(array_replace($recompra, $cambio), 'views/perfil.php');
+        $comprobar($resultado['llamadas'] === [], 'La recompra acepta GET o una petición sin token válido.');
+    }
+    $resultado = $peticion(array_replace($recompra, ['sesion' => []]), 'views/login.php');
+    $comprobar($resultado['llamadas'] === [], 'Un invitado accede a una recompra.');
+    $resultado = $peticion($recompra + ['modo' => 'error'], 'views/carrito.php');
+    $comprobar(!str_contains($resultado['sesion']['alerta'], 'MySQL'), 'Un fallo de recompra expone datos internos.');
     echo 'OK: ' . $totalPruebas . " comprobaciones de controladores de carrito y compra.\n";
 } finally {
     $archivos = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directorioPruebas, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);

@@ -6,10 +6,10 @@ if (!is_executable($phpCgi)) {
 }
 $directorioPruebas = sys_get_temp_dir() . '/cineverse-vistas-' . bin2hex(random_bytes(8));
 mkdir($directorioPruebas, 0700);
-foreach (['views', 'views/partials', 'models'] as $directorio) {
+foreach (['views', 'views/partials', 'models', 'utils'] as $directorio) {
     mkdir($directorioPruebas . '/' . $directorio, 0700);
 }
-foreach (['views/login.php', 'views/registro.php', 'views/perfil.php', 'views/partials/header.php', 'views/partials/footer.php'] as $archivo) {
+foreach (['views/login.php', 'views/registro.php', 'views/perfil.php', 'views/partials/header.php', 'views/partials/footer.php', 'utils/ProteccionFormulario.php'] as $archivo) {
     copy(__DIR__ . '/../' . $archivo, $directorioPruebas . '/' . $archivo);
 }
 file_put_contents($directorioPruebas . '/models/Usuario.php', <<<'MODELO'
@@ -24,6 +24,20 @@ class Usuario
             throw new PDOException('Error interno de MySQL');
         }
         return ($GLOBALS['entrada']['modo'] ?? '') === 'ausente' ? false : $GLOBALS['entrada']['usuario'];
+    }
+}
+MODELO);
+file_put_contents($directorioPruebas . '/models/Pedido.php', <<<'MODELO'
+<?php
+class Pedido
+{
+    public function obtenerPorUsuario(int $usuarioId): array
+    {
+        $GLOBALS['llamadasModelo'][] = ['pedidos', $usuarioId];
+        if (($GLOBALS['entrada']['modo'] ?? '') === 'errorPedidos') {
+            throw new PDOException('Error interno de MySQL');
+        }
+        return $GLOBALS['entrada']['pedidos'] ?? [];
     }
 }
 MODELO);
@@ -102,7 +116,7 @@ try {
     $comprobar(str_contains($cabeceras, 'Location: /tienda-online-php/views/login.php') && str_contains($cabeceras, 'Status: 303'), 'Perfil público sin redirección.');
     $comprobar($html === '' && $estado['llamadas'] === [], 'Un visitante recibe datos o consulta el modelo.');
     [$cabeceras, $html, $xpath, $estado] = $peticion(['vista' => 'perfil', 'sesion' => ['usuarioId' => 7], 'usuario' => $usuario]);
-    $comprobar($estado['llamadas'] === ['constructor', 7], 'El perfil no usa el ID de sesión.');
+    $comprobar($estado['llamadas'] === ['constructor', 7, ['pedidos', 7]], 'El perfil no usa el ID de sesión.');
     $comprobar(str_contains($cabeceras, 'Cache-Control: no-store'), 'El perfil permite almacenar datos en caché.');
     $comprobar($xpath->query('//form[@method="post" and @action="/tienda-online-php/controllers/perfilController.php"]')->length === 1, 'Acción del perfil incorrecta.');
     foreach (['nombre','apellidos','email','dni','fechaNacimiento','pais','provincia','poblacion','codigoPostal'] as $campo) {
@@ -120,6 +134,17 @@ try {
     $comprobar($xpath->query('//section[contains(@class,"account-card")]')->length === 2, 'No hay dos tarjetas.');
     $comprobar($xpath->query('//table/thead/tr/th[@scope="col"]')->length === 4, 'Faltan las columnas de pedidos.');
     file_put_contents('/tmp/cineverse-account-perfil.html', str_replace('/tienda-online-php/assets/', 'file://' . dirname(__DIR__) . '/assets/', $html));
+    [$cabeceras, $html, $xpath, $estado] = $peticion(['vista' => 'perfil', 'sesion' => ['usuarioId' => 7], 'usuario' => $usuario, 'pedidos' => [
+        ['id' => 42, 'total' => '105.50', 'fechaRealizacion' => '2026-11-17 12:30:00'],
+        ['id' => 9, 'total' => '20.10', 'fechaRealizacion' => '2026-10-01 08:15:00'],
+    ]]);
+    $comprobar($xpath->query('//table/tbody/tr')->length === 2, 'No muestra los pedidos reales.');
+    $comprobar(str_contains($html, '105,50 €') && str_contains($html, '17/11/2026 12:30'), 'No formatea total y fecha.');
+    $formularios = $xpath->query('//form[contains(@action,"accion=recomprar")]');
+    $comprobar($formularios->length === 2 && $formularios->item(0)->getAttribute('action') === '/tienda-online-php/controllers/pedidoController.php?accion=recomprar&id=42', 'Acción de recompra incorrecta.');
+    $comprobar($formularios->item(0)->getAttribute('method') === 'post' && $xpath->query('//form[contains(@action,"accion=recomprar")]/input[@name="tokenFormulario"]')->length === 2, 'Recompra sin POST y protección CSRF.');
+    [$cabeceras, $html, $xpath, $estado] = $peticion(['vista' => 'perfil', 'sesion' => ['usuarioId' => 7], 'usuario' => $usuario, 'modo' => 'errorPedidos']);
+    $comprobar(str_contains($html, 'No se ha podido cargar tu historial') && !str_contains($html, 'MySQL') && $xpath->query('//input[@name="nombre"]')->length === 1, 'Un fallo del historial rompe el perfil o expone errores internos.');
     foreach (['ausente' => 'views/login.php', 'error' => 'index.php'] as $modo => $destino) {
         [$cabeceras, $html, $xpath, $estado] = $peticion(['vista' => 'perfil', 'sesion' => ['usuarioId' => 7, 'usuarioNombre' => 'Ana'], 'modo' => $modo]);
         $comprobar(str_contains($cabeceras, 'Location: /tienda-online-php/' . $destino) && $html === '', 'No gestiona un perfil ausente o error de base de datos.');
