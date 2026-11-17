@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/models/Producto.php';
+require_once __DIR__ . '/utils/ProteccionFormulario.php';
 
 $modeloProductos = new Producto();
 $listaProductos = $modeloProductos->obtenerTodos();
@@ -73,6 +74,7 @@ require_once __DIR__ . '/views/partials/header.php';
                         <p class="product-price tabular-nums"><?= htmlspecialchars((string)number_format((float)$producto['precio'], 2, ',', '.')) ?> <span>€</span></p>
                         <?php if ($producto['stock'] > 0): ?>
                             <form action="/tienda-online-php/controllers/carritoController.php" method="post" class="purchase-form">
+                                <input type="hidden" name="tokenFormulario" value="<?= htmlspecialchars((string)ProteccionFormulario::obtenerToken()) ?>">
                                 <input type="hidden" name="productoId" value="<?= htmlspecialchars((string)$producto['idProducto']) ?>">
                                 <label class="quantity-label">Cantidad
                                     <select name="cantidad" required>

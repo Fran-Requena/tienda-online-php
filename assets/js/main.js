@@ -203,3 +203,41 @@ document.querySelectorAll('.account-form').forEach((accountForm) => {
     countryField.addEventListener('change', updatePostalPattern);
     updatePostalPattern();
 });
+
+// La confirmación es una ayuda; el servidor vuelve a validar sesión, importes y stock.
+document.querySelectorAll('[data-confirm-purchase]').forEach((purchaseForm) => {
+    purchaseForm.addEventListener('submit', (event) => {
+        if (!window.confirm('¿Quieres finalizar la compra con los artículos y el total indicados?')) {
+            event.preventDefault();
+        }
+    });
+});
+
+// Controles opcionales: el formulario sigue funcionando sin JavaScript.
+document.querySelectorAll('[data-cart-quantity]').forEach((quantityForm) => {
+    const quantityInput = quantityForm.querySelector('input[name="cantidad"]');
+    if (!(quantityInput instanceof HTMLInputElement)) {
+        return;
+    }
+    const stepButtons = quantityForm.querySelectorAll('[data-quantity-step]');
+    const updateStepButtons = () => {
+        const quantity = Number(quantityInput.value);
+        stepButtons.forEach((stepButton) => {
+            const nextQuantity = quantity + Number(stepButton.dataset.quantityStep);
+            stepButton.disabled = quantityInput.disabled || !Number.isInteger(quantity)
+                || nextQuantity < Number(quantityInput.min) || nextQuantity > Number(quantityInput.max);
+        });
+    };
+    stepButtons.forEach((stepButton) => {
+        stepButton.hidden = false;
+        stepButton.addEventListener('click', () => {
+            const nextQuantity = Number(quantityInput.value) + Number(stepButton.dataset.quantityStep);
+            if (Number.isInteger(nextQuantity) && nextQuantity >= Number(quantityInput.min) && nextQuantity <= Number(quantityInput.max)) {
+                quantityInput.value = String(nextQuantity);
+                quantityInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        });
+    });
+    quantityInput.addEventListener('input', updateStepButtons);
+    updateStepButtons();
+});

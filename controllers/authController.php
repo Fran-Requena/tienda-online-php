@@ -89,4 +89,15 @@ if ($usuario === false) {
 session_regenerate_id(true);
 $_SESSION['usuarioId'] = (int)$usuario['idUsuario'];
 $_SESSION['usuarioNombre'] = $usuario['nombre'];
+if (!empty($_SESSION['carrito']) || !empty($_COOKIE['carritoInvitado'])) {
+    require_once __DIR__ . '/../models/Carrito.php';
+    try {
+        (new Carrito())->fusionarCarritoInvitadoAlLoguear((int)$usuario['idUsuario']);
+    } catch (Throwable $error) {
+        error_log('Error de fusión de carrito: ' . $error->getMessage());
+        // No se pierde el carrito invitado ni se deja una autenticación a medias.
+        unset($_SESSION['usuarioId'], $_SESSION['usuarioNombre']);
+        $redirigirConAlerta('views/login.php', 'No se ha podido recuperar tu carrito. Sigue guardado; vuelve a iniciar sesión.');
+    }
+}
 $redirigirConAlerta('index.php', 'Has iniciado sesión. ¡Bienvenido a CineVerse Merch!');

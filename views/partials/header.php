@@ -3,6 +3,10 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// La URL cambia con el contenido para evitar mezclar vistas nuevas con CSS antiguo.
+$rutaEstilos = __DIR__ . '/../../assets/css/main.css';
+$versionEstilos = is_file($rutaEstilos) ? substr(hash_file('sha256', $rutaEstilos), 0, 12) : '1';
+
 $rutaPagina = $_SERVER['SCRIPT_NAME'] ?? '/tienda-online-php/index.php';
 $rutaContenidoPrincipal = str_starts_with($rutaPagina, '/tienda-online-php/')
     ? $rutaPagina . '#contenidoPrincipal'
@@ -20,7 +24,7 @@ $rutaContenidoPrincipal = str_starts_with($rutaPagina, '/tienda-online-php/')
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link href="/tienda-online-php/assets/css/main.css" rel="stylesheet">
+    <link href="/tienda-online-php/assets/css/main.css?v=<?= htmlspecialchars((string)$versionEstilos) ?>" rel="stylesheet">
 </head>
 <body>
     <a href="<?= htmlspecialchars((string)$rutaContenidoPrincipal) ?>" class="skip-link">Saltar al contenido</a>

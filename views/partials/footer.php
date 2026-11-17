@@ -25,6 +25,10 @@
             <p>Para quienes nunca pasan los créditos.</p>
         </div>
     </footer>
-    <script src="/tienda-online-php/assets/js/main.js" defer></script>
+    <?php
+    $rutaScripts = __DIR__ . '/../../assets/js/main.js';
+    $versionScripts = is_file($rutaScripts) ? substr(hash_file('sha256', $rutaScripts), 0, 12) : '1';
+    ?>
+    <script src="/tienda-online-php/assets/js/main.js?v=<?= htmlspecialchars((string)$versionScripts) ?>" defer></script>
 </body>
 </html>

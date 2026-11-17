@@ -41,11 +41,27 @@ class Usuario
     }
 }
 MODELO);
+file_put_contents($directorioPruebas . '/models/Carrito.php', <<<'CARRITO'
+<?php
+class Carrito
+{
+    public function fusionarCarritoInvitadoAlLoguear(int $usuarioId): void
+    {
+        $GLOBALS['llamadasModelo'][] = ['metodo' => 'fusionar', 'usuarioId' => $usuarioId];
+        if (($GLOBALS['entrada']['modo'] ?? '') === 'errorFusion') {
+            throw new PDOException('Fallo interno de MySQL');
+        }
+        unset($_SESSION['carrito'], $_COOKIE['carritoInvitado']);
+        setcookie('carritoInvitado', '', time() - 3600, '/');
+    }
+}
+CARRITO);
 file_put_contents($directorioPruebas . '/peticion.php', <<<'PETICION'
 <?php
 $entrada = json_decode(getenv('cineVerseTestInput'), true, 512, JSON_THROW_ON_ERROR);
 $_POST = $entrada['post'] ?? [];
 $_GET = $entrada['get'] ?? [];
+$_COOKIE = $entrada['cookies'] ?? [];
 $llamadasModelo = [];
 session_id(bin2hex(random_bytes(16)));
 session_start();
@@ -75,7 +91,7 @@ $peticion = static function (array $entrada, string $destino) use ($phpCgi, $dir
         'cineVerseTestInput' => json_encode($entrada, JSON_THROW_ON_ERROR),
     ];
     $proceso = proc_open(
-        [$phpCgi, '-d', 'display_errors=1', '-d', 'log_errors=0', '-d', 'session.save_path=' . $directorioPruebas],
+        [$phpCgi, '-d', 'display_errors=1', '-d', 'log_errors=0', '-d', 'error_log=' . $directorioPruebas . '/errores.log', '-d', 'session.save_path=' . $directorioPruebas],
         [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $tuberias, null, $entorno
     );
@@ -126,6 +142,13 @@ try {
     $resultado = $peticion(['controlador' => 'authController', 'post' => $credenciales], 'index.php');
     $comprobar($resultado['sesion']['usuarioId'] === 7 && $resultado['sesion']['usuarioNombre'] === 'Ana', 'No autentica al usuario.');
     $comprobar($resultado['sesionRenovada'], 'El login no renueva la sesión.');
+    foreach ([['sesion' => ['carrito' => [1 => 2]]], ['cookies' => ['carritoInvitado' => '{"1":2}']]] as $temporal) {
+        $resultado = $peticion(array_merge(['controlador' => 'authController', 'post' => $credenciales], $temporal), 'index.php');
+        $comprobar($resultado['llamadas'][2] === ['metodo' => 'fusionar', 'usuarioId' => 7], 'No fusiona tras login.');
+        $comprobar(!isset($resultado['sesion']['carrito']), 'No limpia sesión invitada tras login.');
+    }
+    $resultado = $peticion(['controlador' => 'authController', 'post' => $credenciales, 'sesion' => ['carrito' => [1 => 2]], 'modo' => 'errorFusion'], 'views/login.php');
+    $comprobar(!isset($resultado['sesion']['usuarioId']) && $resultado['sesion']['carrito'] === [1 => 2], 'El fallo de fusión pierde carrito o autentica a medias.');
     $resultado = $peticion(['controlador' => 'authController', 'post' => $credenciales, 'modo' => 'incorrecto'], 'views/login.php');
     $comprobar(!isset($resultado['sesion']['usuarioId']), 'Credenciales erróneas inician sesión.');
     foreach (['registro', 'login'] as $accion) {

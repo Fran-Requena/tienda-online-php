@@ -47,6 +47,7 @@ CREATE TABLE pedidos (
     idPedido INT AUTO_INCREMENT PRIMARY KEY,
     idUsuario INT NOT NULL,
     fechaPedido DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    subtotal DECIMAL(10, 2) NOT NULL,
     gastosEnvio DECIMAL(10, 2) NOT NULL,
     totalPedido DECIMAL(10, 2) NOT NULL,
     CONSTRAINT fkPedidoUsuario FOREIGN KEY (idUsuario) 
