@@ -167,3 +167,39 @@ document.querySelectorAll('[data-product-image]').forEach((productImage) => {
         showImageFallback();
     }
 });
+
+// Estas ayudas complementan la validación de los controladores PHP.
+document.querySelectorAll('[data-password-toggle]').forEach((passwordToggle) => {
+    const passwordInput = document.getElementById(passwordToggle.getAttribute('aria-controls'));
+    if (!(passwordInput instanceof HTMLInputElement)) {
+        return;
+    }
+
+    passwordToggle.hidden = false;
+    passwordToggle.addEventListener('click', () => {
+        const isVisible = passwordInput.type === 'password';
+        passwordInput.type = isVisible ? 'text' : 'password';
+        passwordToggle.setAttribute('aria-pressed', String(isVisible));
+        passwordToggle.setAttribute('aria-label', isVisible ? 'Ocultar contraseña' : 'Mostrar contraseña');
+        passwordToggle.textContent = isVisible ? 'Ocultar' : 'Mostrar';
+    });
+});
+
+document.querySelectorAll('.account-form').forEach((accountForm) => {
+    const countryField = accountForm.querySelector('[data-country-field]');
+    const postalField = accountForm.querySelector('[data-postal-field]');
+    const postalHint = accountForm.querySelector('[data-postal-hint]');
+    if (!countryField || !postalField || !postalHint) {
+        return;
+    }
+
+    const updatePostalPattern = () => {
+        const isPortugal = countryField.value === 'Portugal';
+        postalField.pattern = isPortugal ? '[0-9]{4}|[0-9]{7}' : '[0-9]{5}';
+        postalField.maxLength = isPortugal ? 7 : 5;
+        postalHint.textContent = isPortugal ? '4 o 7 dígitos, sin guion.' : '5 dígitos, sin espacios.';
+    };
+
+    countryField.addEventListener('change', updatePostalPattern);
+    updatePostalPattern();
+});

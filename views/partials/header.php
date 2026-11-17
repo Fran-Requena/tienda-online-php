@@ -2,6 +2,11 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
+$rutaPagina = $_SERVER['SCRIPT_NAME'] ?? '/tienda-online-php/index.php';
+$rutaContenidoPrincipal = str_starts_with($rutaPagina, '/tienda-online-php/')
+    ? $rutaPagina . '#contenidoPrincipal'
+    : '/tienda-online-php/index.php#contenidoPrincipal';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -18,7 +23,7 @@ if (session_status() === PHP_SESSION_NONE) {
     <link href="/tienda-online-php/assets/css/main.css" rel="stylesheet">
 </head>
 <body>
-    <a href="/tienda-online-php/index.php#contenidoPrincipal" class="skip-link">Saltar al contenido</a>
+    <a href="<?= htmlspecialchars((string)$rutaContenidoPrincipal) ?>" class="skip-link">Saltar al contenido</a>
     <header class="site-header">
         <div class="header-inner page-width">
             <a data-notification-focus-target href="/tienda-online-php/index.php" class="brand" aria-label="CineVerse Merch, inicio">
@@ -34,7 +39,7 @@ if (session_status() === PHP_SESSION_NONE) {
                     <li><a href="/tienda-online-php/views/carrito.php"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 8h14l1 13H4L5 8Z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/></svg>Carrito</a></li>
                     <?php if (isset($_SESSION['usuarioId'])): ?>
                         <li><a href="/tienda-online-php/views/perfil.php">Mi Perfil</a></li>
-                        <li><a href="/tienda-online-php/logout.php" class="account-link">Cerrar Sesión</a></li>
+                        <li><a href="/tienda-online-php/controllers/authController.php?accion=logout" class="account-link">Cerrar Sesión</a></li>
                     <?php else: ?>
                         <li><a href="/tienda-online-php/views/login.php" class="account-link">Iniciar Sesión</a></li>
                     <?php endif; ?>
